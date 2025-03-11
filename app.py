@@ -24,6 +24,11 @@ import time
 import re
 from streamlit_mermaid import st_mermaid
 
+# Initialize session state for API keys
+if 'api_keys_set' not in st.session_state:
+    st.session_state.api_keys_set = False
+
+# Load environment variables
 load_dotenv()
 
 st.set_page_config(
@@ -148,22 +153,16 @@ class ResearchTools:
             return []
 
 def get_api_keys():
-    """Get API keys from environment or user input"""
-    serper_key = os.getenv("SERPER_API_KEY", "")
-    openai_key = os.getenv("OPENAI_API_KEY", "")
-    openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    
+    """Get API keys from Streamlit secrets"""
     try:
-        if not serper_key:
-            serper_key = st.secrets.get("SERPER_API_KEY", "")
-        if not openai_key:
-            openai_key = st.secrets.get("OPENAI_API_KEY", "")
-        if openai_model == "gpt-4o-mini":
-            openai_model = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
-    except:
-        pass
-    
-    return serper_key, openai_key, openai_model
+        serper_key = st.secrets["SERPER_API_KEY"]
+        openai_key = st.secrets["OPENAI_API_KEY"]
+        openai_model = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
+        st.session_state.api_keys_set = True
+        return serper_key, openai_key, openai_model
+    except Exception:
+        st.session_state.api_keys_set = False
+        return "", "", "gpt-4o-mini"
 
 def setup_agents():
     """Setup and return the agents required for the research"""
@@ -297,7 +296,6 @@ def render_report_with_visualizations(report_content):
         if match.start() > current_pos:
             sections.append(("text", report_content[current_pos:match.start()]))
         
-
         content = match.group()
         if content.startswith("```mermaid"):
             sections.append(("mermaid", content))
@@ -327,6 +325,7 @@ def render_report_with_visualizations(report_content):
 def main():
     st.markdown('<h1 class="main-header">🔍 Advanced Research Assistant</h1>', unsafe_allow_html=True)
     
+    # About section
     with st.expander("ℹ️ About this app", expanded=False):
         st.markdown("""
         <div class="info-text">
@@ -337,46 +336,38 @@ def main():
             <li><strong>Data Visualization Specialist:</strong> Creates diagrams and visual representations</li>
             <li><strong>Technical Writer:</strong> Compiles findings into a well-structured report</li>
         </ul>
-        <p>Simply enter your research topic, configure the optional settings, and click "Start Research" to begin.</p>
+        <p>Simply enter your research topic and click "Start Research" to begin.</p>
         </div>
         """, unsafe_allow_html=True)
     
-    with st.sidebar:
-        st.markdown('<h2 class="sub-header">API Configuration</h2>', unsafe_allow_html=True)
-        
-        serper_key, openai_key, openai_model = get_api_keys()
-        
-        serper_key_input = st.text_input("Serper API Key", value=serper_key, type="password", 
-                                    help="Required for web search capability")
-        
-        openai_key_input = st.text_input("OpenAI API Key", value=openai_key, type="password", 
-                                    help="Required for the AI agents")
-        
-        model_options = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
-        selected_model = st.selectbox("OpenAI Model", options=model_options, 
-                                    index=model_options.index(openai_model) if openai_model in model_options else 0)
-        
-        st.divider()
-        
-        st.markdown('<h2 class="sub-header">Research Settings</h2>', unsafe_allow_html=True)
-        research_depth = st.slider("Research Depth", min_value=1, max_value=5, value=3, 
-                                  help="Higher values produce more detailed reports but take longer")
-        
-        include_visualizations = st.toggle("Include Visualizations", value=True)
-        include_citations = st.toggle("Include Citations", value=True)
+    # Check if API keys are set in secrets
+    serper_key, openai_key, openai_model = get_api_keys()
     
+    if not st.session_state.api_keys_set:
+        st.error("⚠️ API keys not found in environment. Please set them in your Streamlit secrets.")
+        st.info("For local development, create a .streamlit/secrets.toml file with your API keys.")
+        st.stop()
+    
+    # Research settings
+    st.sidebar.markdown('<h2 class="sub-header">Research Settings</h2>', unsafe_allow_html=True)
+    research_depth = st.sidebar.slider("Research Depth", min_value=1, max_value=5, value=3,
+                                     help="Higher values produce more detailed reports but take longer")
+    include_visualizations = st.sidebar.toggle("Include Visualizations", value=True)
+    include_citations = st.sidebar.toggle("Include Citations", value=True)
+    
+    # Main content
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.markdown('<h2 class="sub-header">Research Topic</h2>', unsafe_allow_html=True)
-        topic = st.text_area("Enter your research topic or question", 
+        topic = st.text_area("Enter your research topic or question",
                             placeholder="E.g., Advancements in quantum computing and its potential applications",
                             height=100)
         
         st.markdown('<h2 class="sub-header">Additional Context (Optional)</h2>', unsafe_allow_html=True)
         additional_context = st.text_area("Provide any additional context or specific aspects to focus on",
-                                         placeholder="E.g., Focus on business applications rather than technical details",
-                                         height=100)
+                                        placeholder="E.g., Focus on business applications rather than technical details",
+                                        height=100)
     
     with col2:
         st.markdown('<div class="highlight">', unsafe_allow_html=True)
@@ -399,17 +390,13 @@ def main():
     
     status_placeholder = st.empty()
     
-    serper_key = serper_key_input
-    openai_key = openai_key_input
-    openai_model = selected_model
-    
-    if st.button("🚀 Start Research", disabled=not topic or not serper_key or not openai_key):
+    if st.button("🚀 Start Research", disabled=not topic):
         report_container = st.container()
         
         with st.spinner("Research in progress... This may take several minutes."):
             try:
-                report_content = generate_report(final_topic, status_placeholder, 
-                                                serper_key, openai_key, openai_model)
+                report_content = generate_report(final_topic, status_placeholder,
+                                              serper_key, openai_key, openai_model)
                 
                 with report_container:
                     st.markdown('<h2 class="sub-header">Research Report</h2>', unsafe_allow_html=True)
@@ -424,7 +411,9 @@ def main():
                         mermaid_diagrams = VisualizationTools.extract_mermaid_diagrams(report_content)
                         for i, diagram in enumerate(mermaid_diagrams, 1):
                             st.markdown(f"#### Diagram {i}")
-                            VisualizationTools.render_mermaid_diagram(diagram, key=f"mermaid_diagram_{i}")
+                            # Clean and fix the diagram code
+                            diagram_code = diagram.replace("Security Operations Center (SOC)", "SOC")
+                            VisualizationTools.render_mermaid_diagram(diagram_code, key=f"mermaid_diagram_{i}")
                             st.markdown("---")
                     
                     with tab3:
