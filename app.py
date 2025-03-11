@@ -13,7 +13,6 @@ from io import BytesIO
 import tempfile
 import time
 
-# Load the .env file and set up environment variables
 load_dotenv()
 
 st.set_page_config(
@@ -23,7 +22,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS to improve the app's appearance
 st.markdown("""
 <style>
     .main-header {
@@ -99,7 +97,7 @@ class ResearchTools:
             search_query = scholarly.search_pubs(query)
             citations = []
             try:
-                for i in range(5):  # Get first 5 results
+                for i in range(5): 
                     pub = next(search_query)
                     citations.append({
                         'title': pub.bib.get('title', ''),
@@ -115,12 +113,10 @@ class ResearchTools:
 
 def get_api_keys():
     """Get API keys from environment or user input"""
-    # First try to get from environment variables
     serper_key = os.getenv("SERPER_API_KEY", "")
     openai_key = os.getenv("OPENAI_API_KEY", "")
     openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     
-    # Try to get from Streamlit secrets if available (wrapped in try/except to handle missing secrets)
     try:
         if not serper_key:
             serper_key = st.secrets.get("SERPER_API_KEY", "")
@@ -129,14 +125,13 @@ def get_api_keys():
         if openai_model == "gpt-4o-mini":
             openai_model = st.secrets.get("OPENAI_MODEL", "gpt-4o-mini")
     except:
-        # Secrets not available, will use environment variables or user input
         pass
     
     return serper_key, openai_key, openai_model
 
 def setup_agents():
     """Setup and return the agents required for the research"""
-    # Enhanced Researcher Agent
+    # Senior Researcher Agent
     researcher = Agent(
         role='Senior Research Analyst',
         goal='Conduct comprehensive research and create detailed analysis with visualizations',
@@ -221,46 +216,36 @@ def create_research_tasks(topic, researcher, visualizer, writer):
 
 def generate_report(topic, status_placeholder, serper_key, openai_key, openai_model):
     """Generate a research report on the given topic"""
-    # Set environment variables
     os.environ["SERPER_API_KEY"] = serper_key
     os.environ["OPENAI_API_KEY"] = openai_key
     os.environ["OPENAI_MODEL"] = openai_model
     
-    # Setup agents
     researcher, visualizer, writer = setup_agents()
     
-    # Create tasks
     tasks = create_research_tasks(topic, researcher, visualizer, writer)
     
-    # Create crew - FIX: Change verbose from int to bool
     crew = Crew(
         agents=[researcher, visualizer, writer],
         tasks=tasks,
         process=Process.sequential,
-        verbose=True  # Changed from 2 to True
+        verbose=True 
     )
     
-    # Update status
     status_placeholder.markdown('<p class="status progress">Starting the research process...</p>', unsafe_allow_html=True)
     
-    # Create a temporary directory to store the report
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Set the output file path
         output_file = os.path.join(temp_dir, f"research_report_{datetime.now().strftime('%Y%m%d')}.md")
         tasks[-1].output_file = output_file
         
-        # Run the crew
         status_placeholder.markdown('<p class="status progress">Research in progress...</p>', unsafe_allow_html=True)
         result = crew.kickoff(inputs={'topic': topic})
         
-        # Check if the file was created
         if os.path.exists(output_file):
             with open(output_file, 'r') as f:
                 report_content = f.read()
         else:
             report_content = result
     
-    # Update status
     status_placeholder.markdown('<p class="status success">Research completed successfully!</p>', unsafe_allow_html=True)
     
     return report_content
@@ -282,13 +267,11 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Sidebar for API keys and configuration
     with st.sidebar:
         st.markdown('<h2 class="sub-header">API Configuration</h2>', unsafe_allow_html=True)
         
         serper_key, openai_key, openai_model = get_api_keys()
         
-        # Always prompt for keys in the UI, but use environment/secrets as defaults
         serper_key_input = st.text_input("Serper API Key", value=serper_key, type="password", 
                                     help="Required for web search capability")
         
@@ -308,7 +291,6 @@ def main():
         include_visualizations = st.toggle("Include Visualizations", value=True)
         include_citations = st.toggle("Include Citations", value=True)
     
-    # Main content area
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -317,7 +299,6 @@ def main():
                             placeholder="E.g., Advancements in quantum computing and its potential applications",
                             height=100)
         
-        # Additional context
         st.markdown('<h2 class="sub-header">Additional Context (Optional)</h2>', unsafe_allow_html=True)
         additional_context = st.text_area("Provide any additional context or specific aspects to focus on",
                                          placeholder="E.g., Focus on business applications rather than technical details",
@@ -338,36 +319,27 @@ def main():
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Combine topic and additional context if provided
     final_topic = topic
     if additional_context.strip():
         final_topic = f"{topic}. Additional context: {additional_context}"
     
-    # Status placeholder
     status_placeholder = st.empty()
     
-    # Use the input values rather than the initial values
     serper_key = serper_key_input
     openai_key = openai_key_input
     openai_model = selected_model
     
-    # Start research button
     if st.button("🚀 Start Research", disabled=not topic or not serper_key or not openai_key):
-        # Create a container for the report
         report_container = st.container()
         
-        # Generate the report
         with st.spinner("Research in progress... This may take several minutes."):
             try:
-                # Pass the API keys directly to the generate_report function
                 report_content = generate_report(final_topic, status_placeholder, 
                                                 serper_key, openai_key, openai_model)
                 
-                # Display the report
                 with report_container:
                     st.markdown('<h2 class="sub-header">Research Report</h2>', unsafe_allow_html=True)
                     
-                    # Create tabs for different views
                     tab1, tab2 = st.tabs(["Rendered Report", "Markdown Source"])
                     
                     with tab1:
@@ -376,7 +348,6 @@ def main():
                     with tab2:
                         st.text_area("Markdown Source", report_content, height=500)
                     
-                    # Download button
                     st.download_button(
                         label="📥 Download Report",
                         data=report_content,
@@ -388,7 +359,6 @@ def main():
                 st.error(f"An error occurred during the research process: {str(e)}")
                 status_placeholder.markdown(f'<p class="status error">Error: {str(e)}</p>', unsafe_allow_html=True)
     
-    # Instructions and examples at the bottom
     with st.expander("📚 Tips for effective research topics", expanded=False):
         st.markdown("""
         <div class="info-text">
@@ -402,7 +372,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Add dependency installation instructions
     with st.expander("🔧 Installation Requirements", expanded=False):
         st.markdown("""
         <div class="info-text">
@@ -418,7 +387,6 @@ pip install scholarly mdutils
         </div>
         """, unsafe_allow_html=True)
     
-    # Add troubleshooting section
     with st.expander("🛠️ Troubleshooting", expanded=False):
         st.markdown("""
         <div class="info-text">
@@ -434,7 +402,6 @@ pip install scholarly mdutils
         </div>
         """, unsafe_allow_html=True)
     
-    # Footer
     st.markdown("---")
     st.markdown('<p style="text-align:center">Advanced Research Assistant</p>', unsafe_allow_html=True)
 

@@ -9,3 +9,4 @@ mdutils
 beautifulsoup4
 scholarly
 pandas
+streamlit==1.43.1
