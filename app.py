@@ -3,7 +3,6 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 
-# Fix for SQLite version issue
 try:
     import pysqlite3
     sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
@@ -24,11 +23,9 @@ import time
 import re
 from streamlit_mermaid import st_mermaid
 
-# Initialize session state for API keys
 if 'api_keys_set' not in st.session_state:
     st.session_state.api_keys_set = False
 
-# Load environment variables
 load_dotenv()
 
 st.set_page_config(
@@ -325,7 +322,6 @@ def render_report_with_visualizations(report_content):
 def main():
     st.markdown('<h1 class="main-header">🔍 Advanced Research Assistant</h1>', unsafe_allow_html=True)
     
-    # About section
     with st.expander("ℹ️ About this app", expanded=False):
         st.markdown("""
         <div class="info-text">
@@ -340,7 +336,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Check if API keys are set in secrets
     serper_key, openai_key, openai_model = get_api_keys()
     
     if not st.session_state.api_keys_set:
@@ -348,14 +343,12 @@ def main():
         st.info("For local development, create a .streamlit/secrets.toml file with your API keys.")
         st.stop()
     
-    # Research settings
     st.sidebar.markdown('<h2 class="sub-header">Research Settings</h2>', unsafe_allow_html=True)
     research_depth = st.sidebar.slider("Research Depth", min_value=1, max_value=5, value=3,
                                      help="Higher values produce more detailed reports but take longer")
     include_visualizations = st.sidebar.toggle("Include Visualizations", value=True)
     include_citations = st.sidebar.toggle("Include Citations", value=True)
     
-    # Main content
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -411,7 +404,6 @@ def main():
                         mermaid_diagrams = VisualizationTools.extract_mermaid_diagrams(report_content)
                         for i, diagram in enumerate(mermaid_diagrams, 1):
                             st.markdown(f"#### Diagram {i}")
-                            # Clean and fix the diagram code
                             diagram_code = diagram.replace("Security Operations Center (SOC)", "SOC")
                             VisualizationTools.render_mermaid_diagram(diagram_code, key=f"mermaid_diagram_{i}")
                             st.markdown("---")
