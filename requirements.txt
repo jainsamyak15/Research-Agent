@@ -3,3 +3,9 @@ crewai[tools]
 langchain_openai
 langchain_community
 python-dotenv
+matplotlib
+networkx
+mdutils
+beautifulsoup4
+scholarly
+pandas
