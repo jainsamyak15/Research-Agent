@@ -1,6 +1,15 @@
+import sys
 import streamlit as st
 import os
 from dotenv import load_dotenv
+
+# Fix for SQLite version issue
+try:
+    import pysqlite3
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
 from crewai import Agent, Task, Crew, Process
 from crewai_tools import SerperDevTool
 import json
