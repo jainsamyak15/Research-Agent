@@ -10,3 +10,4 @@ beautifulsoup4
 scholarly
 pandas
 streamlit==1.43.1
+streamlit-mermaid==0.3.0

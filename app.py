@@ -12,6 +12,8 @@ import base64
 from io import BytesIO
 import tempfile
 import time
+import re
+from streamlit_mermaid import st_mermaid
 
 load_dotenv()
 
@@ -65,11 +67,37 @@ st.markdown("""
 
 class VisualizationTools:
     @staticmethod
-    def create_mermaid_diagram(data):
-        return f"""```mermaid
-graph TD
-    {data}
-```"""
+    def extract_mermaid_diagrams(markdown_content):
+        """Extract Mermaid diagrams from markdown content"""
+        pattern = r"```mermaid\n(.*?)```"
+        return re.findall(pattern, markdown_content, re.DOTALL)
+
+    @staticmethod
+    def extract_latex_equations(markdown_content):
+        """Extract LaTeX equations from markdown content"""
+        inline_pattern = r"\$([^\$]+)\$"
+        block_pattern = r"\$\$(.*?)\$\$"
+        inline_matches = re.findall(inline_pattern, markdown_content)
+        block_matches = re.findall(block_pattern, markdown_content, re.DOTALL)
+        return {"inline": inline_matches, "block": block_matches}
+
+    @staticmethod
+    def render_mermaid_diagram(diagram_code, key=None):
+        """Render a Mermaid diagram using streamlit-mermaid"""
+        diagram_code = diagram_code.strip()
+        if diagram_code.startswith("```mermaid"):
+            diagram_code = diagram_code[10:].strip()
+        if diagram_code.endswith("```"):
+            diagram_code = diagram_code[:-3].strip()
+        st_mermaid(diagram_code, key=key)
+
+    @staticmethod
+    def render_latex(equation, block=False, key=None):
+        """Render a LaTeX equation"""
+        if block:
+            st.latex(equation)
+        else:
+            st.markdown(f"${equation}$")
 
     @staticmethod
     def create_relationship_graph(nodes, edges):
@@ -80,7 +108,6 @@ graph TD
         nx.draw(G, with_labels=True, node_color='lightblue', 
                 node_size=1500, font_size=10, font_weight='bold')
         
-        # Save to BytesIO object instead of a file
         buf = BytesIO()
         plt.savefig(buf, format='png')
         plt.close()
@@ -131,7 +158,6 @@ def get_api_keys():
 
 def setup_agents():
     """Setup and return the agents required for the research"""
-    # Senior Researcher Agent
     researcher = Agent(
         role='Senior Research Analyst',
         goal='Conduct comprehensive research and create detailed analysis with visualizations',
@@ -145,7 +171,6 @@ def setup_agents():
         allow_delegation=True
     )
 
-    # Data Visualization Specialist Agent
     visualizer = Agent(
         role='Data Visualization Specialist',
         goal='Create compelling visualizations and diagrams from research data',
@@ -158,7 +183,6 @@ def setup_agents():
         allow_delegation=False
     )
 
-    # Technical Writer Agent
     writer = Agent(
         role='Technical Writer',
         goal='Create comprehensive and well-structured technical documentation',
@@ -250,6 +274,47 @@ def generate_report(topic, status_placeholder, serper_key, openai_key, openai_mo
     
     return report_content
 
+def render_report_with_visualizations(report_content):
+    """Render the report content with compiled visualizations"""
+    sections = []
+    current_pos = 0
+    
+    mermaid_matches = list(re.finditer(r"```mermaid.*?```", report_content, re.DOTALL))
+    latex_matches = list(re.finditer(r"\$\$.*?\$\$", report_content, re.DOTALL))
+    
+    all_matches = sorted(mermaid_matches + latex_matches, key=lambda x: x.start())
+    
+    for match in all_matches:
+        if match.start() > current_pos:
+            sections.append(("text", report_content[current_pos:match.start()]))
+        
+
+        content = match.group()
+        if content.startswith("```mermaid"):
+            sections.append(("mermaid", content))
+        else:
+            sections.append(("latex", content))
+        
+        current_pos = match.end()
+    
+    if current_pos < len(report_content):
+        sections.append(("text", report_content[current_pos:]))
+    
+    for idx, (section_type, content) in enumerate(sections):
+        display_id = f"section_{idx}"
+        
+        section_container = st.container()
+        
+        with section_container:
+            if section_type == "mermaid":
+                VisualizationTools.render_mermaid_diagram(content, key=f"report_mermaid_{idx}")
+            elif section_type == "latex":
+                equation = content[2:-2].strip()
+                VisualizationTools.render_latex(equation, block=True)
+            else:
+                content = re.sub(r"\$([^\$]+)\$", r"\\(\1\\)", content)
+                st.markdown(content, unsafe_allow_html=True)
+
 def main():
     st.markdown('<h1 class="main-header">🔍 Advanced Research Assistant</h1>', unsafe_allow_html=True)
     
@@ -340,12 +405,36 @@ def main():
                 with report_container:
                     st.markdown('<h2 class="sub-header">Research Report</h2>', unsafe_allow_html=True)
                     
-                    tab1, tab2 = st.tabs(["Rendered Report", "Markdown Source"])
+                    tab1, tab2, tab3, tab4 = st.tabs(["Rendered Report", "Visualizations", "Equations", "Markdown Source"])
                     
                     with tab1:
-                        st.markdown(report_content, unsafe_allow_html=True)
+                        render_report_with_visualizations(report_content)
                     
                     with tab2:
+                        st.markdown("### Mermaid Diagrams")
+                        mermaid_diagrams = VisualizationTools.extract_mermaid_diagrams(report_content)
+                        for i, diagram in enumerate(mermaid_diagrams, 1):
+                            st.markdown(f"#### Diagram {i}")
+                            VisualizationTools.render_mermaid_diagram(diagram, key=f"mermaid_diagram_{i}")
+                            st.markdown("---")
+                    
+                    with tab3:
+                        st.markdown("### LaTeX Equations")
+                        equations = VisualizationTools.extract_latex_equations(report_content)
+                        if equations["block"]:
+                            st.markdown("#### Block Equations")
+                            for i, eq in enumerate(equations["block"], 1):
+                                st.markdown(f"Equation {i}:")
+                                VisualizationTools.render_latex(eq, block=True)
+                                st.markdown("---")
+                        if equations["inline"]:
+                            st.markdown("#### Inline Equations")
+                            for i, eq in enumerate(equations["inline"], 1):
+                                st.markdown(f"Equation {i}: ")
+                                VisualizationTools.render_latex(eq)
+                                st.markdown("---")
+                    
+                    with tab4:
                         st.text_area("Markdown Source", report_content, height=500)
                     
                     st.download_button(
@@ -377,7 +466,7 @@ def main():
         <div class="info-text">
         <p>To run this application, you need to install the following dependencies:</p>
         <pre>
-pip install streamlit python-dotenv crewai crewai-tools langchain-openai networkx matplotlib pandas
+pip install streamlit python-dotenv crewai crewai-tools langchain-openai networkx matplotlib pandas streamlit-mermaid
         </pre>
         
         <p>Optional dependencies for additional features:</p>
