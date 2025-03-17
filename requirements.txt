@@ -12,3 +12,4 @@ pandas
 streamlit==1.43.1
 streamlit-mermaid==0.3.0
 pysqlite3-binary
+databricks-sdk==0.46.0
